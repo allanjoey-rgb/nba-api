@@ -1,11 +1,13 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import requests
+import os
 
 app = Flask(__name__)
-CORS(app)  # Permite que qualquer site acesse esse servidor
+CORS(app)
 
 NBA_BASE = "https://stats.nba.com/stats"
+ANTHROPIC_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 
 HEADERS = {
     "Host": "stats.nba.com",
@@ -22,111 +24,16 @@ HEADERS = {
 
 @app.route("/")
 def home():
-    return jsonify({"status": "NBA Proxy funcionando!", "versao": "1.0"})
+    return jsonify({"status": "NBA Proxy funcionando!", "versao": "2.0"})
 
-# Médias por quarto (últimos N jogos)
-@app.route("/player/splits")
-def player_splits():
-    player_id = request.args.get("player_id")
-    season = request.args.get("season", "2024-25")
-    last_n = request.args.get("last_n", "0")  # 0 = temporada toda, 10 = últimos 10
-
-    url = f"{NBA_BASE}/playerdashboardbygeneralsplits"
-    params = {
-        "PlayerID": player_id,
-        "Season": season,
-        "SeasonType": "Regular Season",
-        "PerMode": "PerGame",
-        "LastNGames": last_n,
-        "MeasureType": "Base",
-        "PaceAdjust": "N",
-        "PlusMinus": "N",
-        "Rank": "N",
-        "LeagueID": "00",
-        "DateFrom": "",
-        "DateTo": "",
-        "GameSegment": "",
-        "Location": "",
-        "Month": "0",
-        "OpponentTeamID": "0",
-        "Outcome": "",
-        "PORound": "0",
-        "Period": "0",
-        "SeasonSegment": "",
-        "ShotClockRange": "",
-        "VsConference": "",
-        "VsDivision": "",
-    }
-    try:
-        r = requests.get(url, headers=HEADERS, params=params, timeout=10)
-        return jsonify(r.json())
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-# Stats por quarto
-@app.route("/player/by-period")
-def player_by_period():
-    player_id = request.args.get("player_id")
-    season = request.args.get("season", "2024-25")
-    last_n = request.args.get("last_n", "0")
-
-    url = f"{NBA_BASE}/playerdashboardbygeneralsplits"
-    params = {
-        "PlayerID": player_id,
-        "Season": season,
-        "SeasonType": "Regular Season",
-        "PerMode": "PerGame",
-        "LastNGames": last_n,
-        "MeasureType": "Base",
-        "PaceAdjust": "N",
-        "PlusMinus": "N",
-        "Rank": "N",
-        "LeagueID": "00",
-        "DateFrom": "", "DateTo": "", "GameSegment": "",
-        "Location": "", "Month": "0", "OpponentTeamID": "0",
-        "Outcome": "", "PORound": "0", "Period": "0",
-        "SeasonSegment": "", "ShotClockRange": "",
-        "VsConference": "", "VsDivision": "",
-    }
-    try:
-        r = requests.get(url, headers=HEADERS, params=params, timeout=10)
-        return jsonify(r.json())
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-# Log de jogos (game log)
-@app.route("/player/gamelog")
-def player_gamelog():
-    player_id = request.args.get("player_id")
-    season = request.args.get("season", "2024-25")
-
-    url = f"{NBA_BASE}/playergamelog"
-    params = {
-        "PlayerID": player_id,
-        "Season": season,
-        "SeasonType": "Regular Season",
-        "LeagueID": "00",
-    }
-    try:
-        r = requests.get(url, headers=HEADERS, params=params, timeout=10)
-        return jsonify(r.json())
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-# Buscar jogador por nome
 @app.route("/players/search")
 def search_players():
     name = request.args.get("name", "").lower()
     season = request.args.get("season", "2024-25")
-
     url = f"{NBA_BASE}/commonallplayers"
-    params = {
-        "LeagueID": "00",
-        "Season": season,
-        "IsOnlyCurrentSeason": "1",
-    }
+    params = {"LeagueID": "00", "Season": season, "IsOnlyCurrentSeason": "1"}
     try:
-        r = requests.get(url, headers=HEADERS, params=params, timeout=10)
+        r = requests.get(url, headers=HEADERS, params=params, timeout=15)
         data = r.json()
         headers_list = data["resultSets"][0]["headers"]
         rows = data["resultSets"][0]["rowSet"]
@@ -136,33 +43,57 @@ def search_players():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# Stats gerais do jogador
-@app.route("/player/stats")
-def player_stats():
+@app.route("/player/gamelog")
+def player_gamelog():
+    player_id = request.args.get("player_id")
+    season = request.args.get("season", "2024-25")
+    url = f"{NBA_BASE}/playergamelog"
+    params = {"PlayerID": player_id, "Season": season, "SeasonType": "Regular Season", "LeagueID": "00"}
+    try:
+        r = requests.get(url, headers=HEADERS, params=params, timeout=15)
+        return jsonify(r.json())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/player/splits")
+def player_splits():
     player_id = request.args.get("player_id")
     season = request.args.get("season", "2024-25")
     last_n = request.args.get("last_n", "0")
-
-    url = f"{NBA_BASE}/playerdashboardbyyearoveryear"
+    url = f"{NBA_BASE}/playerdashboardbygeneralsplits"
     params = {
-        "PlayerID": player_id,
-        "Season": season,
-        "SeasonType": "Regular Season",
-        "PerMode": "PerGame",
-        "LastNGames": last_n,
-        "MeasureType": "Base",
-        "PaceAdjust": "N",
-        "PlusMinus": "N",
-        "Rank": "N",
-        "LeagueID": "00",
-        "DateFrom": "", "DateTo": "", "GameSegment": "",
-        "Location": "", "Month": "0", "OpponentTeamID": "0",
-        "Outcome": "", "PORound": "0", "Period": "0",
-        "SeasonSegment": "", "ShotClockRange": "",
+        "PlayerID": player_id, "Season": season,
+        "SeasonType": "Regular Season", "PerMode": "PerGame",
+        "LastNGames": last_n, "MeasureType": "Base",
+        "PaceAdjust": "N", "PlusMinus": "N", "Rank": "N",
+        "LeagueID": "00", "DateFrom": "", "DateTo": "",
+        "GameSegment": "", "Location": "", "Month": "0",
+        "OpponentTeamID": "0", "Outcome": "", "PORound": "0",
+        "Period": "0", "SeasonSegment": "", "ShotClockRange": "",
         "VsConference": "", "VsDivision": "",
     }
     try:
-        r = requests.get(url, headers=HEADERS, params=params, timeout=10)
+        r = requests.get(url, headers=HEADERS, params=params, timeout=15)
+        return jsonify(r.json())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/ai", methods=["POST"])
+def ai_proxy():
+    if not ANTHROPIC_KEY:
+        return jsonify({"error": "API key não configurada"}), 500
+    try:
+        body = request.get_json()
+        r = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": ANTHROPIC_KEY,
+                "anthropic-version": "2023-06-01"
+            },
+            json=body,
+            timeout=30
+        )
         return jsonify(r.json())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
