@@ -7,7 +7,7 @@ app = Flask(__name__)
 CORS(app)
 
 NBA_BASE = "https://stats.nba.com/stats"
-ANTHROPIC_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+GROQ_KEY = os.environ.get("GROQ_API_KEY", "")
 
 HEADERS = {
     "Host": "stats.nba.com",
@@ -24,7 +24,7 @@ HEADERS = {
 
 @app.route("/")
 def home():
-    return jsonify({"status": "NBA Proxy funcionando!", "versao": "2.0"})
+    return jsonify({"status": "NBA Proxy funcionando!", "versao": "3.0"})
 
 @app.route("/players/search")
 def search_players():
@@ -80,21 +80,36 @@ def player_splits():
 
 @app.route("/ai", methods=["POST"])
 def ai_proxy():
-    if not ANTHROPIC_KEY:
-        return jsonify({"error": "API key não configurada"}), 500
+    if not GROQ_KEY:
+        return jsonify({"error": "GROQ_API_KEY não configurada"}), 500
     try:
         body = request.get_json()
+        # Convert Anthropic format to Groq format
+        system = body.get("system", "")
+        messages = body.get("messages", [])
+        groq_messages = []
+        if system:
+            groq_messages.append({"role": "system", "content": system})
+        groq_messages.extend(messages)
+
         r = requests.post(
-            "https://api.anthropic.com/v1/messages",
+            "https://api.groq.com/openai/v1/chat/completions",
             headers={
                 "Content-Type": "application/json",
-                "x-api-key": ANTHROPIC_KEY,
-                "anthropic-version": "2023-06-01"
+                "Authorization": f"Bearer {GROQ_KEY}"
             },
-            json=body,
+            json={
+                "model": "llama-3.3-70b-versatile",
+                "messages": groq_messages,
+                "max_tokens": 800,
+                "temperature": 0.7
+            },
             timeout=30
         )
-        return jsonify(r.json())
+        data = r.json()
+        # Convert Groq response to Anthropic-like format
+        reply = data.get("choices", [{}])[0].get("message", {}).get("content", "Erro ao processar.")
+        return jsonify({"content": [{"type": "text", "text": reply}]})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
