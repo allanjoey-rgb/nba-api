@@ -7,27 +7,20 @@ app = Flask(__name__)
 CORS(app)
 
 GROQ_KEY = os.environ.get("GROQ_API_KEY", "")
-RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY", "")
+ESPN = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba"
+ESPN2 = "https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba"
 
-RAPID_HEADERS = {
-    "x-rapidapi-key": RAPIDAPI_KEY,
-    "x-rapidapi-host": "nba-api-free-data.p.rapidapi.com"
-}
+HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
 
 @app.route("/")
 def home():
-    return jsonify({"status": "NBA Proxy funcionando!", "versao": "5.0"})
+    return jsonify({"status": "NBA Proxy funcionando!", "versao": "6.0"})
 
 @app.route("/players/search")
 def search_players():
     name = request.args.get("name", "")
     try:
-        r = requests.get(
-            "https://nba-api-free-data.p.rapidapi.com/nba-player-listing/v1/data",
-            headers=RAPID_HEADERS,
-            params={"name": name},
-            timeout=15
-        )
+        r = requests.get(f"{ESPN2}/athletes", headers=HEADERS, params={"search": name, "limit": 5}, timeout=15)
         return jsonify(r.json())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -35,14 +28,17 @@ def search_players():
 @app.route("/players/stats")
 def player_stats():
     player_id = request.args.get("player_id", "")
-    season = request.args.get("season", "2024-25")
     try:
-        r = requests.get(
-            "https://nba-api-free-data.p.rapidapi.com/nba-player-info/v1/data",
-            headers=RAPID_HEADERS,
-            params={"id": player_id},
-            timeout=15
-        )
+        r = requests.get(f"{ESPN}/athletes/{player_id}/statistics", headers=HEADERS, timeout=15)
+        return jsonify(r.json())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/players/info")
+def player_info():
+    player_id = request.args.get("player_id", "")
+    try:
+        r = requests.get(f"{ESPN}/athletes/{player_id}", headers=HEADERS, timeout=15)
         return jsonify(r.json())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -50,28 +46,16 @@ def player_stats():
 @app.route("/leaders")
 def leaders():
     stat = request.args.get("stat", "points")
-    season = request.args.get("season", "2024-25")
     try:
-        r = requests.get(
-            "https://nba-api-free-data.p.rapidapi.com/nba-player-listing/v1/data",
-            headers=RAPID_HEADERS,
-            params={"season": season},
-            timeout=15
-        )
+        r = requests.get(f"{ESPN}/leaders", headers=HEADERS, params={"stat": stat}, timeout=15)
         return jsonify(r.json())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route("/scores")
 def scores():
-    date = request.args.get("date", "")
     try:
-        r = requests.get(
-            "https://nba-api-free-data.p.rapidapi.com/nba-score/v1/data",
-            headers=RAPID_HEADERS,
-            params={"date": date},
-            timeout=15
-        )
+        r = requests.get(f"{ESPN}/scoreboard", headers=HEADERS, timeout=15)
         return jsonify(r.json())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -79,11 +63,7 @@ def scores():
 @app.route("/standings")
 def standings():
     try:
-        r = requests.get(
-            "https://nba-api-free-data.p.rapidapi.com/nba-standings/v1/data",
-            headers=RAPID_HEADERS,
-            timeout=15
-        )
+        r = requests.get(f"{ESPN}/standings", headers=HEADERS, timeout=15)
         return jsonify(r.json())
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -103,16 +83,8 @@ def ai_proxy():
 
         r = requests.post(
             "https://api.groq.com/openai/v1/chat/completions",
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {GROQ_KEY}"
-            },
-            json={
-                "model": "llama-3.3-70b-versatile",
-                "messages": groq_messages,
-                "max_tokens": 800,
-                "temperature": 0.7
-            },
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {GROQ_KEY}"},
+            json={"model": "llama-3.3-70b-versatile", "messages": groq_messages, "max_tokens": 800, "temperature": 0.7},
             timeout=30
         )
         data = r.json()
